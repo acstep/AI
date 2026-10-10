@@ -14,9 +14,12 @@ body{background:#ffffff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFo
 .stats{display:flex;gap:26px;margin-top:18px;flex-wrap:wrap}
 .stat .n{font-size:1.5rem;font-weight:800;color:#111827;line-height:1.2}
 .stat .l{font-size:.76rem;color:#9ca3af}
-.section{margin-top:36px}
-.section-title{font-size:1.15rem;font-weight:700;padding-bottom:10px;border-bottom:1px solid #e5e7eb;margin-bottom:14px}
-.section-title .cnt{font-size:.8rem;font-weight:500;color:#9ca3af;margin-left:6px}
+.section{margin-top:38px}
+.section-title{font-size:1.3rem;font-weight:700;padding-bottom:10px;border-bottom:1px solid #e5e7eb}
+.section-title .cnt{font-size:.82rem;font-weight:500;color:#9ca3af;margin-left:6px}
+.cnote{font-size:.8rem;color:#9ca3af;margin-top:6px}
+.month{font-size:.92rem;font-weight:700;color:#374151;margin:22px 0 10px}
+.month .cnt{font-size:.76rem;font-weight:500;color:#9ca3af;margin-left:6px}
 .list{display:flex;flex-direction:column;gap:12px}
 .card{display:flex;align-items:center;gap:18px;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;padding:16px 18px;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s}
 .card:hover{border-color:#9ca3af;box-shadow:0 2px 10px rgba(0,0,0,.06)}
@@ -39,7 +42,7 @@ body{background:#ffffff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFo
 <div class="container">
 <div class="header">
   <h1>📚 AI 新聞庫</h1>
-  <div class="subtitle">各期 AI 新聞彙整 · 點日期進入該期 · 新報告推上來後本頁自動出現</div>
+  <div class="subtitle">各期報告彙整 · 點日期進入該期 · 新報告推上來後本頁自動出現</div>
   <div class="stats">
     <div class="stat"><div class="n" id="s-count">—</div><div class="l">期報告</div></div>
     <div class="stat"><div class="n" id="s-total">—</div><div class="l">則新聞</div></div>
@@ -49,26 +52,36 @@ body{background:#ffffff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFo
 
 <div id="root"><div class="empty">載入中…</div></div>
 
-<div class="footer">以上為研究整理、僅供參考 · 標註「據報／傳」者屬未經當事人證實之消息</div>
+<div class="footer">以上為研究整理、僅供參考 · 標註「據報／傳」者屬未經當事人證實之消息 · 個股新聞不構成投資建議</div>
 </div>
 
 <script>
 var REPO = 'acstep/AI';
-var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:-(.+))?\.html$/;
+var DATE_RE  = /^(\d{4})-(\d{2})-(\d{2})(?:-(.+))?\.html$/;
+var STOCK_RE = /^stocks-(\d{4})-(\d{2})-(\d{2})(?:-(.+))?\.html$/;
+var CATS = [
+  { id: 'stocks', label: '📈 個股新聞', note: '41 檔 AI 概念股，每檔精選 5 則最新最重要新聞' },
+  { id: 'ai',     label: '🤖 AI 新聞',  note: 'AI 產業每日／每週彙整' }
+];
 var WD = ['一','二','三','四','五','六','日'];
-var CACHE_KEY = 'ai-news-index-cache-v1';
+var CACHE_KEY = 'ai-news-index-cache-v2';
 
 function esc(s){ return String(s).replace(/[&<>"']/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
-
+function pad(n){ return n < 10 ? '0' + n : '' + n; }
 function loadCache(){
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch(e){ return {}; }
 }
-function saveCache(c){
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch(e){}
+function saveCache(c){ try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch(e){} }
+function weekday(y, m, d){
+  var w = new Date(y, m - 1, d).getDay();
+  return WD[w === 0 ? 6 : w - 1];
 }
 
-function weekday(y, m, d){ return WD[new Date(y, m - 1, d).getDay() === 0 ? 6 : new Date(y, m - 1, d).getDay() - 1]; }
+function mk(e, m, cat){
+  return { name: e.name, size: e.size, y: +m[1], mo: +m[2], d: +m[3],
+           variant: m[4] || '', cat: cat };
+}
 
 function cardHTML(r, isLatest){
   var badge = (isLatest && !r.variant) ? "<span class='badge'>最新</span>" : '';
@@ -76,8 +89,8 @@ function cardHTML(r, isLatest){
   var title = r.title ? esc(r.title) : 'AI 新聞';
   var meta  = (r.count != null) ? (r.count + ' 則') : '&nbsp;';
   return "<a class='card' href='" + esc(r.name) + "'>" +
-    "<div class='date'><div class='d'>" + (r.d < 10 ? '0' : '') + r.d + "</div>" +
-    "<div class='ym'>" + r.y + " / " + (r.mo < 10 ? '0' : '') + r.mo + "</div>" +
+    "<div class='date'><div class='d'>" + pad(r.d) + "</div>" +
+    "<div class='ym'>" + r.y + " / " + pad(r.mo) + "</div>" +
     "<div class='wd'>週" + weekday(r.y, r.mo, r.d) + "</div></div>" +
     "<div class='info'><div class='ttl'>" + title + badge + vtag + "</div>" +
     "<div class='meta'>" + meta + "</div></div>" +
@@ -88,43 +101,53 @@ function render(reports){
   var root = document.getElementById('root');
   if (!reports.length){ root.innerHTML = "<div class='empty'>尚無報告</div>"; return; }
 
-  var groups = {};
-  reports.forEach(function(r){
-    var k = r.y + '-' + (r.mo < 10 ? '0' : '') + r.mo;
-    (groups[k] = groups[k] || []).push(r);
-  });
-
   var latest = reports[0];
-  var html = Object.keys(groups).sort().reverse().map(function(ym){
-    var y = ym.split('-')[0], m = ym.split('-')[1];
-    var cards = groups[ym].map(function(r){
-      return cardHTML(r, r.name === latest.name);
-    }).join('');
-    return "<div class='section'><div class='section-title'>" + y + " 年 " + parseInt(m, 10) +
-           " 月 <span class='cnt'>" + groups[ym].length + " 期</span></div>" +
-           "<div class='list'>" + cards + "</div></div>";
-  }).join('');
+  var out = '';
+  CATS.forEach(function(c){
+    var sub = reports.filter(function(r){ return r.cat === c.id; });
+    if (!sub.length) return;
 
-  root.innerHTML = html;
+    var groups = {};
+    sub.forEach(function(r){
+      var k = r.y + '-' + pad(r.mo);
+      (groups[k] = groups[k] || []).push(r);
+    });
+
+    var inner = Object.keys(groups).sort().reverse().map(function(ym){
+      var y = ym.split('-')[0], m = ym.split('-')[1];
+      return "<div class='month'>" + y + " 年 " + parseInt(m, 10) + " 月" +
+             "<span class='cnt'>" + groups[ym].length + " 期</span></div>" +
+             "<div class='list'>" + groups[ym].map(function(r){
+               return cardHTML(r, r.name === latest.name);
+             }).join('') + "</div>";
+    }).join('');
+
+    out += "<div class='section'><div class='section-title'>" + c.label +
+           "<span class='cnt'>" + sub.length + " 期</span></div>" +
+           "<div class='cnote'>" + esc(c.note) + "</div>" + inner + "</div>";
+  });
+  root.innerHTML = out;
 
   var known = reports.filter(function(r){ return r.count != null; });
   document.getElementById('s-count').textContent = reports.length;
   document.getElementById('s-total').textContent =
-    known.length === reports.length ? known.reduce(function(a, r){ return a + r.count; }, 0) : '—';
+    known.length === reports.length
+      ? known.reduce(function(a, r){ return a + r.count; }, 0) : '—';
   document.getElementById('s-latest').textContent =
-    latest.y + '-' + (latest.mo < 10 ? '0' : '') + latest.mo + '-' + (latest.d < 10 ? '0' : '') + latest.d;
+    latest.y + '-' + pad(latest.mo) + '-' + pad(latest.d);
 }
 
 async function fetchMeta(r, cache){
   var hit = cache[r.name];
-  if (hit && hit.size === r.size) return hit;            // 快取命中，省一次請求
+  if (hit && hit.size === r.size) return hit;
   try {
     var res = await fetch(r.name);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var txt = await res.text();
     var tm = txt.match(/<title>([\s\S]*?)<\/title>/);
     var title = tm ? tm[1].trim() : 'AI 新聞';
-    title = title.replace(/^🤖\s*/, '').replace(/\s*\d{4}-\d{2}-\d{2}[\s\S]*$/, '').trim() || 'AI 新聞';
+    title = title.replace(/^[^\u4e00-\u9fffA-Za-z0-9]*/, '')
+                 .replace(/\s*\d{4}-\d{2}-\d{2}[\s\S]*$/, '').trim() || 'AI 新聞';
     var count = (txt.match(/class=['"]article['"]/g) || []).length;
     var rec = { size: r.size, title: title, count: count };
     cache[r.name] = rec;
@@ -147,19 +170,21 @@ async function main(){
     return;
   }
 
-  var reports = entries
-    .filter(function(e){ return e.type === 'file' && DATE_RE.test(e.name); })
-    .map(function(e){
-      var m = e.name.match(DATE_RE);
-      return { name: e.name, size: e.size, y: +m[1], mo: +m[2], d: +m[3], variant: m[4] || '' };
-    })
-    .sort(function(a, b){
-      return (b.y - a.y) || (b.mo - a.mo) || (b.d - a.d) ||
-             a.variant.localeCompare(b.variant);
-    });
+  var reports = [];
+  entries.forEach(function(e){
+    if (e.type !== 'file') return;
+    var m = e.name.match(STOCK_RE);
+    if (m){ reports.push(mk(e, m, 'stocks')); return; }
+    m = e.name.match(DATE_RE);
+    if (m) reports.push(mk(e, m, 'ai'));
+  });
+  reports.sort(function(a, b){
+    return (b.y - a.y) || (b.mo - a.mo) || (b.d - a.d) ||
+           a.variant.localeCompare(b.variant);
+  });
 
   var cache = loadCache();
-  reports.forEach(function(r){                       // 先用快取即時顯示
+  reports.forEach(function(r){
     var hit = cache[r.name];
     if (hit && hit.size === r.size){ r.title = hit.title; r.count = hit.count; }
   });
