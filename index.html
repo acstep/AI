@@ -27,7 +27,7 @@ body{background:#ffffff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFo
 .info{flex:1;min-width:0}
 .ttl{font-size:1.02rem;font-weight:700;color:#111827}
 .badge{display:inline-block;font-size:.66rem;font-weight:700;color:#ffffff;background:#2563eb;border-radius:999px;padding:1px 8px;vertical-align:middle;margin-left:6px}
-.note{font-size:.82rem;color:#6b7280;margin-top:3px}
+.vtag{display:inline-block;font-size:.66rem;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:999px;padding:1px 8px;vertical-align:middle;margin-left:6px}
 .meta{font-size:.76rem;color:#9ca3af;margin-top:5px}
 .arrow{font-size:1.5rem;color:#d1d5db;flex:0 0 auto}
 .empty{text-align:center;color:#9ca3af;font-size:.88rem;padding:40px 0}
@@ -39,32 +39,144 @@ body{background:#ffffff;color:#1f2937;font-family:-apple-system,BlinkMacSystemFo
 <div class="container">
 <div class="header">
   <h1>📚 AI 新聞庫</h1>
-  <div class="subtitle">各期 AI 新聞彙整 · 點日期進入該期</div>
+  <div class="subtitle">各期 AI 新聞彙整 · 點日期進入該期 · 新報告推上來後本頁自動出現</div>
   <div class="stats">
-    <div class="stat"><div class="n">1</div><div class="l">期報告</div></div>
-    <div class="stat"><div class="n">100</div><div class="l">則新聞</div></div>
-    <div class="stat"><div class="n">2026-10-10</div><div class="l">最新一期</div></div>
+    <div class="stat"><div class="n" id="s-count">—</div><div class="l">期報告</div></div>
+    <div class="stat"><div class="n" id="s-total">—</div><div class="l">則新聞</div></div>
+    <div class="stat"><div class="n" id="s-latest">—</div><div class="l">最新一期</div></div>
   </div>
 </div>
 
-<div class='section'>
-    <div class='section-title'>2026 年 10 月 <span class='cnt'>1 期</span></div>
-    <div class='list'><a class='card' href='2026-10-10.html'>
-      <div class='date'>
-        <div class='d'>10</div>
-        <div class='ym'>2026 / 10</div>
-        <div class='wd'>週六</div>
-      </div>
-      <div class='info'>
-        <div class='ttl'>AI 本週速報 <span class='badge'>最新</span></div>
-        <div class='note'>本週彙整 10-03 ~ 10-10</div>
-        <div class='meta'>100 則</div>
-      </div>
-      <div class='arrow'>&rsaquo;</div>
-    </a></div>
-  </div>
+<div id="root"><div class="empty">載入中…</div></div>
 
 <div class="footer">以上為研究整理、僅供參考 · 標註「據報／傳」者屬未經當事人證實之消息</div>
 </div>
+
+<script>
+var REPO = 'acstep/AI';
+var DATE_RE = /^(\d{4})-(\d{2})-(\d{2})(?:-(.+))?\.html$/;
+var WD = ['一','二','三','四','五','六','日'];
+var CACHE_KEY = 'ai-news-index-cache-v1';
+
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+function loadCache(){
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch(e){ return {}; }
+}
+function saveCache(c){
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch(e){}
+}
+
+function weekday(y, m, d){ return WD[new Date(y, m - 1, d).getDay() === 0 ? 6 : new Date(y, m - 1, d).getDay() - 1]; }
+
+function cardHTML(r, isLatest){
+  var badge = (isLatest && !r.variant) ? "<span class='badge'>最新</span>" : '';
+  var vtag  = r.variant ? "<span class='vtag'>" + esc(r.variant) + "</span>" : '';
+  var title = r.title ? esc(r.title) : 'AI 新聞';
+  var meta  = (r.count != null) ? (r.count + ' 則') : '&nbsp;';
+  return "<a class='card' href='" + esc(r.name) + "'>" +
+    "<div class='date'><div class='d'>" + (r.d < 10 ? '0' : '') + r.d + "</div>" +
+    "<div class='ym'>" + r.y + " / " + (r.mo < 10 ? '0' : '') + r.mo + "</div>" +
+    "<div class='wd'>週" + weekday(r.y, r.mo, r.d) + "</div></div>" +
+    "<div class='info'><div class='ttl'>" + title + badge + vtag + "</div>" +
+    "<div class='meta'>" + meta + "</div></div>" +
+    "<div class='arrow'>&rsaquo;</div></a>";
+}
+
+function render(reports){
+  var root = document.getElementById('root');
+  if (!reports.length){ root.innerHTML = "<div class='empty'>尚無報告</div>"; return; }
+
+  var groups = {};
+  reports.forEach(function(r){
+    var k = r.y + '-' + (r.mo < 10 ? '0' : '') + r.mo;
+    (groups[k] = groups[k] || []).push(r);
+  });
+
+  var latest = reports[0];
+  var html = Object.keys(groups).sort().reverse().map(function(ym){
+    var y = ym.split('-')[0], m = ym.split('-')[1];
+    var cards = groups[ym].map(function(r){
+      return cardHTML(r, r.name === latest.name);
+    }).join('');
+    return "<div class='section'><div class='section-title'>" + y + " 年 " + parseInt(m, 10) +
+           " 月 <span class='cnt'>" + groups[ym].length + " 期</span></div>" +
+           "<div class='list'>" + cards + "</div></div>";
+  }).join('');
+
+  root.innerHTML = html;
+
+  var known = reports.filter(function(r){ return r.count != null; });
+  document.getElementById('s-count').textContent = reports.length;
+  document.getElementById('s-total').textContent =
+    known.length === reports.length ? known.reduce(function(a, r){ return a + r.count; }, 0) : '—';
+  document.getElementById('s-latest').textContent =
+    latest.y + '-' + (latest.mo < 10 ? '0' : '') + latest.mo + '-' + (latest.d < 10 ? '0' : '') + latest.d;
+}
+
+async function fetchMeta(r, cache){
+  var hit = cache[r.name];
+  if (hit && hit.size === r.size) return hit;            // 快取命中，省一次請求
+  try {
+    var res = await fetch(r.name);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var txt = await res.text();
+    var tm = txt.match(/<title>([\s\S]*?)<\/title>/);
+    var title = tm ? tm[1].trim() : 'AI 新聞';
+    title = title.replace(/^🤖\s*/, '').replace(/\s*\d{4}-\d{2}-\d{2}[\s\S]*$/, '').trim() || 'AI 新聞';
+    var count = (txt.match(/class=['"]article['"]/g) || []).length;
+    var rec = { size: r.size, title: title, count: count };
+    cache[r.name] = rec;
+    return rec;
+  } catch(e){ return hit || null; }
+}
+
+async function main(){
+  var root = document.getElementById('root');
+  var entries;
+  try {
+    var res = await fetch('https://api.github.com/repos/' + REPO + '/contents/?per_page=100',
+                          { headers: { 'Accept': 'application/vnd.github+json' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    entries = await res.json();
+    if (!Array.isArray(entries)) throw new Error('回應格式異常');
+  } catch(e){
+    root.innerHTML = "<div class='empty'>無法載入清單：" + esc(e.message) +
+      "<br>請稍後重新整理</div>";
+    return;
+  }
+
+  var reports = entries
+    .filter(function(e){ return e.type === 'file' && DATE_RE.test(e.name); })
+    .map(function(e){
+      var m = e.name.match(DATE_RE);
+      return { name: e.name, size: e.size, y: +m[1], mo: +m[2], d: +m[3], variant: m[4] || '' };
+    })
+    .sort(function(a, b){
+      return (b.y - a.y) || (b.mo - a.mo) || (b.d - a.d) ||
+             a.variant.localeCompare(b.variant);
+    });
+
+  var cache = loadCache();
+  reports.forEach(function(r){                       // 先用快取即時顯示
+    var hit = cache[r.name];
+    if (hit && hit.size === r.size){ r.title = hit.title; r.count = hit.count; }
+  });
+  render(reports);
+
+  var missing = reports.filter(function(r){ return r.count == null; });
+  if (missing.length){
+    var results = await Promise.all(missing.map(function(r){ return fetchMeta(r, cache); }));
+    saveCache(cache);
+    missing.forEach(function(r, i){
+      if (results[i]){ r.title = results[i].title; r.count = results[i].count; }
+    });
+    render(reports);
+  }
+}
+
+main();
+</script>
 </body>
 </html>
